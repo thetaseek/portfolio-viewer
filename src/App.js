@@ -16,10 +16,31 @@ import themes from "./theme";
 import { Portfolio } from "./Portfolio";
 
 function App() {
-  const [isDarkTheme, setTheme] = React.useState(true);
+  const [isDarkTheme, setTheme] = React.useState(false);
   const theme = createMuiTheme(
     isDarkTheme ? themes.THEME_DARK : themes.THEME_LIGHT
   );
+
+  // const proxy = 'https://cors-anywhere.coincuro.com/';
+  // // const proxy = 'https://thingproxy.freeboard.io/fetch/';
+  // const req = 'https://www.bitmex.com/api/v1/instrument?count=100&reverse=false';
+  //
+  // const url = proxy + req;
+  // console.log(url)
+  // React.useEffect(() => {
+  //   axios({
+  //     method: 'GET',
+  //     url,
+  //   })
+  //     .then(r => console.log(r.data))
+  //     .catch(e => {
+  //       console.error(e.response.status);
+  //       console.error(e.response.data);
+  //       console.error(e.response);
+  //       console.error(e);
+  //       return e;
+  //     });
+  // })
   return (
     <MuiThemeProvider theme={theme}>
       <CssBaseline />

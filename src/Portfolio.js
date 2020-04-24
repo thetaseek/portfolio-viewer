@@ -1,4 +1,7 @@
 import React from "react";
+import zip from "lodash/zip";
+import uniqBy from "lodash/uniqBy";
+import sumBy from "lodash/sumBy";
 import {
   Container,
   Divider,
@@ -31,161 +34,35 @@ import {
   YAxis,
 } from "recharts";
 import { makeStyles } from "@material-ui/core/styles";
+import { format, startOfDay } from "date-fns";
+import {
+  changeEachPeriod,
+  changeOverPeriodEnd,
+  changeOverall,
+  movingAverage,
+  sharpeRatio,
+} from "./calcs";
 
-const margin = [
-  {
-    instrument: "XBTUSD",
-    allocation: 0.2,
-  },
-  {
-    instrument: "ETHUSD",
-    allocation: 0.07,
-  },
-  {
-    instrument: "ETHM20",
-    allocation: 0.73,
-  },
-];
+import { sampleKurtosis, sampleSkewness } from "simple-statistics";
+import { position, walletHistory } from "./data";
 
-const data = [
-  {
-    date: "01/04/2020",
-    performance: -0.001779552,
-    change: -0.001779552,
-    sevenMA: null,
-  },
-  {
-    date: "02/04/2020",
-    performance: 0.00088927,
-    change: 0.002668822,
-    sevenMA: null,
-  },
-  {
-    date: "03/04/2020",
-    performance: 0.001663272,
-    change: 0.000774002,
-    sevenMA: null,
-  },
-  {
-    date: "04/04/2020",
-    performance: 0.004082874,
-    change: 0.002419602,
-    sevenMA: null,
-  },
-  {
-    date: "05/04/2020",
-    performance: 0.004151302,
-    change: 0.000068428,
-    sevenMA: null,
-  },
-  {
-    date: "06/04/2020",
-    performance: 0.000947648,
-    change: -0.003203654,
-    sevenMA: null,
-  },
-  {
-    date: "07/04/2020",
-    performance: -0.01066761,
-    change: -0.011615258,
-    sevenMA: -0.5562396643,
-  },
-  {
-    date: "08/04/2020",
-    performance: -0.005262734,
-    change: 0.005404876,
-    sevenMA: -0.1816230614,
-  },
-  {
-    date: "09/04/2020",
-    performance: 0.001907296,
-    change: 0.00717003,
-    sevenMA: 0.05308278429,
-  },
-  {
-    date: "10/04/2020",
-    performance: 0.005246748,
-    change: 0.003339452,
-    sevenMA: 0.1868526771,
-  },
-  {
-    date: "11/04/2020",
-    performance: 0.009117856,
-    change: 0.003871108,
-    sevenMA: 0.2625383471,
-  },
-  {
-    date: "12/04/2020",
-    performance: 0.012302606,
-    change: 0.00318475,
-    sevenMA: 0.42503228,
-  },
-  {
-    date: "13/04/2020",
-    performance: 0.01633312,
-    change: 0.004030514,
-    sevenMA: 0.8022424686,
-  },
-  {
-    date: "14/04/2020",
-    performance: 0.021289672,
-    change: 0.004956552,
-    sevenMA: 1.66634399,
-  },
-  {
-    date: "15/04/2020",
-    performance: 0.027651248,
-    change: 0.006361576,
-    sevenMA: 1.716229061,
-  },
-  {
-    date: "16/04/2020",
-    performance: 0.031558504,
-    change: 0.003907256,
-    sevenMA: 1.546098703,
-  },
-  {
-    date: "17/04/2020",
-    performance: 0.034652244,
-    change: 0.00309374,
-    sevenMA: 1.533286577,
-  },
-  {
-    date: "18/04/2020",
-    performance: 0.038741312,
-    change: 0.004089068,
-    sevenMA: 1.544651634,
-  },
-  {
-    date: "19/04/2020",
-    performance: 0.045149514,
-    change: 0.006408202,
-    sevenMA: 1.712731631,
-  },
-  {
-    date: "20/04/2020",
-    performance: 0.04667736,
-    change: 0.001527846,
-    sevenMA: 1.582235371,
-  },
-];
+const formatDate = (date) => format(date, "yyyy-MM-dd");
 
-const gradientOffset = () => {
-  const dataMax = Math.max(...data.map((i) => i.performance * 100));
-  const dataMin = Math.min(...data.map((i) => i.performance * 100));
+const PerformanceChart = ({ data }) => {
+  const gradientOffset = () => {
+    const dataMax = Math.max(...data.map((i) => i.performance * 100));
+    const dataMin = Math.min(...data.map((i) => i.performance * 100));
 
-  if (dataMax <= 0) {
-    return 0;
-  } else if (dataMin >= 0) {
-    return 1;
-  } else {
-    return dataMax / (dataMax - dataMin);
-  }
-};
+    if (dataMax <= 0) {
+      return 0;
+    } else if (dataMin >= 0) {
+      return 1;
+    } else {
+      return dataMax / (dataMax - dataMin);
+    }
+  };
 
-const off = gradientOffset();
-
-const PerformanceChart = () => {
+  const off = gradientOffset();
   const theme = useTheme();
   const text = theme.palette.text.primary;
   const tooltipColor = theme.palette.getContrastText("#fff");
@@ -200,7 +77,7 @@ const PerformanceChart = () => {
       <AreaChart
         data={data.map((x) => ({
           date: x.date,
-          Performance: (x.performance * 100).toFixed(2),
+          Performance: x.performance * 100,
         }))}
         // margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
       >
@@ -218,7 +95,7 @@ const PerformanceChart = () => {
 
         <Tooltip
           contentStyle={{ color: tooltipColor }}
-          formatter={(x) => `${x}%`}
+          formatter={(x) => `${x.toFixed(2)}%`}
         />
         <Legend />
         <defs>
@@ -245,28 +122,29 @@ const PerformanceChart = () => {
     </ResponsiveContainer>
   );
 };
-const MovingAverage = () => {
+
+const MovingAverage = ({ data }) => {
   const theme = useTheme();
   const text = theme.palette.text.primary;
   const tooltipColor = theme.palette.getContrastText("#fff");
   const color = theme.palette.primary.main;
+  const d = data.map((x) => ({
+    date: x.date,
+    return: x.sevenMA * 100,
+  }));
   return (
     <ResponsiveContainer>
       <LineChart
         // syncId="time-series"
-        data={data
-          // .filter((x) => x.sevenMA !== null)
-          .map((x) => ({
-            date: x.date,
-            return: x.sevenMA ? (x.sevenMA * 100).toFixed(2) : null,
-          }))}
+        data={d}
         // margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
       >
         <CartesianGrid strokeDasharray="2 2" />
         <XAxis dataKey="date" />
         <YAxis
-          tickFormatter={(x) => `${x}%`}
-          domain={[-100, 200]}
+          // domain={[-100, 200]}
+          // domain={['dataMin', 'dataMax']}
+          unit="%"
           label={{
             value: "Annualised Return",
             angle: -90,
@@ -276,7 +154,7 @@ const MovingAverage = () => {
         />
         <Tooltip
           labelStyle={{ color: tooltipColor }}
-          formatter={(x) => [`${x}%`, "MA(7) Annualised Return"]}
+          formatter={(x) => [`${x.toFixed(2)}%`, "MA(7) Annualised Return"]}
         />
         <Legend formatter={(x) => "MA(7)"} />
         <Line
@@ -296,7 +174,7 @@ const MovingAverage = () => {
   );
 };
 
-const MarginAllocation = () => {
+const MarginAllocation = ({ data }) => {
   const theme = useTheme();
   const text = theme.palette.text.primary;
   const stroke = theme.palette.background.paper;
@@ -310,7 +188,8 @@ const MarginAllocation = () => {
       <PieChart>
         <Pie
           dataKey="allocation"
-          data={margin.sort((a, b) => b.allocation - a.allocation)}
+          nameKey={"instrument"}
+          data={data.sort((a, b) => b.allocation - a.allocation)}
           // cx="40%"
           // cy={200}
           labelLine
@@ -320,7 +199,6 @@ const MarginAllocation = () => {
           stroke={stroke}
           strokeWidth={3}
           // paddingAngle={5}
-          nameKey={"instrument"}
           // label={(x) => `${x.instrument} (${(x.value * 100).toFixed(0)}%)`}
           labelStyle={{ color: text, fill: text }}
         >
@@ -370,6 +248,58 @@ const useStyles = makeStyles((theme) => ({
 export const Portfolio = () => {
   const theme = useTheme();
   const classes = useStyles();
+
+  const raw = uniqBy(
+    walletHistory.filter((x) => x.transactStatus === "Completed"),
+    (x) => formatDate(new Date(x.timestamp))
+  )
+    .map((x) => ({
+      date: new Date(x.timestamp),
+      balance: parseFloat(x.walletBalance / 10e8),
+    }))
+    .reverse();
+  const startedAt = raw[0].date;
+  const dates = raw.map((x) => x.date);
+  const balances = raw.map((x) => x.balance);
+  const change = changeEachPeriod(balances);
+
+  const riskFreeRate = 0.25 / 100;
+
+  // Single Numbers
+  const aum = balances[balances.length - 1];
+  const kurtosis = sampleKurtosis(change.slice(1));
+  const returnLast30Days = changeOverPeriodEnd(balances, 30) * 365;
+  const returnLast7Days = changeOverPeriodEnd(balances, 7) * 365;
+  const sharpe = sharpeRatio(balances, riskFreeRate / 365);
+  const skewness = sampleSkewness(change.slice(1));
+
+  // Arrays
+  const performance = changeOverall(balances);
+  const ma = movingAverage(change, 7);
+  const maData = zip(dates, ma).map(([date, sevenMA]) => ({
+    date: formatDate(startOfDay(date)),
+    sevenMA: sevenMA * 365,
+  }));
+  const performanceData = zip(dates, performance).map(
+    ([date, performance]) => ({
+      date: formatDate(new Date(date)),
+      performance,
+    })
+  );
+  const data = raw.map((x, i) => ({
+    date: x.date,
+    balance: x.balance,
+    change: change[i],
+    sevenMA: ma[i] * 365,
+    performance: performance[i],
+  }));
+  console.log(data);
+
+  const marginSum = sumBy(position, "maintMargin");
+  const margin = position.map((x) => ({
+    allocation: x.maintMargin / marginSum,
+    instrument: x.symbol,
+  }));
   return (
     <Container maxWidth="lg" className={classes.container}>
       <Paper elevation={4} className={classes.paper}>
@@ -398,8 +328,9 @@ export const Portfolio = () => {
               movements.
             </Typography>
             <br />
-            <Typography variant="body2">Active Since: 01/Apr/2020</Typography>
-            {/*<Typography>Current AUM - 5.2334 BTC</Typography>*/}
+            <Typography variant="body2">
+              Active Since: {startedAt.toISOString().split("T")[0]}
+            </Typography>
           </Grid>
 
           <Grid
@@ -430,7 +361,7 @@ export const Portfolio = () => {
                       fontSize: "2em",
                     }}
                   >
-                    5.3 BTC
+                    {`${aum.toFixed(3)} BTC`}
                   </span>
                   <br />
                   AUM
@@ -446,7 +377,7 @@ export const Portfolio = () => {
                       color: theme.palette.primary.main,
                     }}
                   >
-                    0.56
+                    {sharpe.toFixed(2)}
                   </span>
                   <br />
                   Sharpe Ratio
@@ -466,7 +397,9 @@ export const Portfolio = () => {
                     }}
                   >
                     <ArrowUpwardIcon style={{ fontSize: "0.7em" }} />
-                    158.22%
+                    {Number.isNaN(returnLast7Days)
+                      ? "N.A."
+                      : `${(returnLast7Days * 100).toFixed(2)}%`}
                   </span>
                   <br />
                   Annualised Return
@@ -482,7 +415,9 @@ export const Portfolio = () => {
                       fontSize: "2em",
                     }}
                   >
-                    N.A.
+                    {Number.isNaN(returnLast30Days)
+                      ? "N.A."
+                      : `${(returnLast30Days * 100).toFixed(2)}%`}
                   </span>
                   <br />
                   Annualised Return
@@ -500,7 +435,7 @@ export const Portfolio = () => {
           Overall Portfolio Performance
         </Typography>
         <div style={{ height: "350px", margin: "24px 8px 16px" }}>
-          <PerformanceChart />
+          <PerformanceChart data={performanceData} />
         </div>
         <br />
         <Divider />
@@ -509,7 +444,7 @@ export const Portfolio = () => {
           Annualised Returns
         </Typography>
         <div style={{ height: "350px", margin: "24px 8px 16px" }}>
-          <MovingAverage />
+          <MovingAverage data={maData} />
         </div>
         <br />
         <Divider />
@@ -521,7 +456,7 @@ export const Portfolio = () => {
               Current Margin Allocation
             </Typography>
             <div style={{ height: "250px", margin: "0 8px" }}>
-              <MarginAllocation />
+              <MarginAllocation data={margin} />
             </div>
           </Grid>
           <Grid item xs={12} md={5}>
@@ -539,9 +474,11 @@ export const Portfolio = () => {
                 <TableBody>
                   {[
                     { name: "", value: "" },
-                    { name: "Sharpe Ratio", value: "0.56" },
-                    { name: "Alpha", value: "96%" },
-                    { name: "Beta", value: "-0.05" },
+                    { name: "Sharpe Ratio", value: sharpe.toFixed(3) },
+                    { name: "Skewness", value: skewness.toFixed(3) },
+                    { name: "Kurtosis", value: kurtosis.toFixed(3) },
+                    // { name: "Alpha", value: "96%" },
+                    // { name: "Beta", value: "-0.05" },
                   ].map(({ name, value }) => (
                     <TableRow key={value}>
                       <TableCell component="th" scope="row">
