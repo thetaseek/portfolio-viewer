@@ -2,9 +2,11 @@ import React from "react";
 import zip from "lodash/zip";
 import uniqBy from "lodash/uniqBy";
 import sumBy from "lodash/sumBy";
+import IconError from "@material-ui/icons/ErrorOutline";
 import {
   Container,
   Divider,
+  CircularProgress,
   Grid,
   Hidden,
   Link,
@@ -34,7 +36,7 @@ import {
   YAxis,
 } from "recharts";
 import { makeStyles } from "@material-ui/core/styles";
-import { format, startOfDay } from "date-fns";
+import { format } from "date-fns";
 import {
   changeEachPeriod,
   changeOverPeriodEnd,
@@ -44,7 +46,6 @@ import {
 } from "./calcs";
 
 import { sampleKurtosis, sampleSkewness } from "simple-statistics";
-import { position, walletHistory } from "./data";
 
 const formatDate = (date) => format(date, "yyyy-MM-dd");
 
@@ -222,10 +223,12 @@ const MarginAllocation = ({ data }) => {
 };
 
 const useStyles = makeStyles((theme) => ({
-  container: {
-    padding: theme.spacing(1),
+  paperMessage: {
+    textAlign: "center",
+    height: "400px",
+    padding: theme.spacing(0),
     [theme.breakpoints.up("md")]: {
-      padding: theme.spacing(4, 2),
+      padding: theme.spacing(4),
     },
   },
   paper: {
@@ -245,9 +248,67 @@ const useStyles = makeStyles((theme) => ({
   },
 }));
 
-export const Portfolio = () => {
+export const Portfolio = ({
+  fetching,
+  error,
+  walletHistory = [],
+  position = [],
+}) => {
   const theme = useTheme();
   const classes = useStyles();
+  if (fetching) {
+    return (
+      <Paper className={classes.paperMessage}>
+        <Grid
+          container
+          justify={"center"}
+          alignContent="center"
+          style={{ height: "100%" }}
+        >
+          <Grid item>
+            <CircularProgress />
+            <Typography>Retrieving</Typography>
+          </Grid>
+        </Grid>
+      </Paper>
+    );
+  }
+  if (error) {
+    return (
+      <Paper className={classes.paperMessage}>
+        <Grid
+          container
+          justify={"center"}
+          alignContent="center"
+          style={{ height: "100%" }}
+        >
+          <Grid item>
+            <IconError fontSize="large" color="error" />
+            <Typography color="error">Failed to load data with API keys</Typography>
+          </Grid>
+        </Grid>
+      </Paper>
+    );
+  }
+  if (walletHistory.length === 0 || position.length === 0) {
+    return (
+      <Paper className={classes.paperMessage}>
+        <Grid
+          container
+          justify={"center"}
+          alignContent="center"
+          style={{ height: "100%" }}
+        >
+          <Grid item>
+            <IconError fontSize="large" />
+            <Typography>
+              Please add your API keys to retrieve portfolio performance
+            </Typography>
+          </Grid>
+        </Grid>
+      </Paper>
+    );
+  }
 
   const raw = uniqBy(
     walletHistory.filter((x) => x.transactStatus === "Completed"),
@@ -258,8 +319,6 @@ export const Portfolio = () => {
       balance: parseFloat(x.walletBalance / 10e8),
     }))
     .reverse();
-  const startedAt = raw[0].date;
-  const dates = raw.map((x) => x.date);
   const balances = raw.map((x) => x.balance);
   const change = changeEachPeriod(balances);
 
@@ -276,24 +335,16 @@ export const Portfolio = () => {
   // Arrays
   const performance = changeOverall(balances);
   const ma = movingAverage(change, 7);
-  const maData = zip(dates, ma).map(([date, sevenMA]) => ({
-    date: formatDate(startOfDay(date)),
-    sevenMA: sevenMA * 365,
-  }));
-  const performanceData = zip(dates, performance).map(
-    ([date, performance]) => ({
-      date: formatDate(new Date(date)),
-      performance,
-    })
-  );
   const data = raw.map((x, i) => ({
-    date: x.date,
+    date: formatDate(x.date),
     balance: x.balance,
     change: change[i],
     sevenMA: ma[i] * 365,
     performance: performance[i],
   }));
-  console.log(data);
+  const maData = data;
+  const performanceData = data;
+  console.debug(data);
 
   const marginSum = sumBy(position, "maintMargin");
   const margin = position.map((x) => ({
@@ -301,198 +352,149 @@ export const Portfolio = () => {
     instrument: x.symbol,
   }));
   return (
-    <Container maxWidth="lg" className={classes.container}>
-      <Paper elevation={4} className={classes.paper}>
-        <Grid
-          container
-          justify="space-between"
-          alignContent="center"
-          alignItems="center"
-        >
-          <Grid item md={8} className={classes.descriptionBox}>
-            <Typography variant="h1">Quanto Strategy</Typography>
-            <Link
-              href="https://twitter.com/thetaseek"
-              color="inherit"
-              variant="subtitle1"
+    <Paper className={classes.paper}>
+      <Typography variant="h1">Portfolio Overview</Typography>
+      <Grid
+        container
+        justify="space-between"
+        alignContent="center"
+        alignItems="center"
+        style={{ textAlign: "center" }}
+      >
+        <Grid item xs={6} md={3}>
+          <Typography align="center" variant="caption">
+            <span
+              style={{
+                fontWeight: 500,
+                fontSize: "2em",
+              }}
             >
-              by{" "}
-              <span style={{ color: theme.palette.primary.main }}>
-                Thetaseek
-              </span>
-            </Link>
+              {`${aum.toFixed(3)} BTC`}
+            </span>
             <br />
+            AUM
             <br />
-            <Typography>
-              This trade is Delta-hedged meaning that it's unaffected by price
-              movements.
-            </Typography>
-            <br />
-            <Typography variant="body2">
-              Active Since: {startedAt.toISOString().split("T")[0]}
-            </Typography>
-          </Grid>
-
-          <Grid
-            item
-            md={4}
-            style={{
-              width: "100%",
-              textAlign: "center",
-              padding: "8px 0",
-              // borderTop: dividerStyle,
-              // alignSelf: 'stretch',
-              // height: 'auto',
-            }}
-          >
-            <Hidden mdUp>
-              <Divider />
-              <br />
-              <Typography variant="h5" gutterBottom>
-                Key Stats
-              </Typography>
-            </Hidden>
-            <Grid container>
-              <Grid item xs={6}>
-                <Typography align="center" variant="caption">
-                  <span
-                    style={{
-                      fontWeight: 500,
-                      fontSize: "2em",
-                    }}
-                  >
-                    {`${aum.toFixed(3)} BTC`}
-                  </span>
-                  <br />
-                  AUM
-                  <br />
-                </Typography>
-              </Grid>
-              <Grid item xs={6}>
-                <Typography align="center" variant="caption">
-                  <span
-                    style={{
-                      fontWeight: 500,
-                      fontSize: "2em",
-                      color: theme.palette.primary.main,
-                    }}
-                  >
-                    {sharpe.toFixed(2)}
-                  </span>
-                  <br />
-                  Sharpe Ratio
-                </Typography>
-              </Grid>
-            </Grid>
-            <br />
-            <Grid container>
-              <Grid item xs={6}>
-                <Typography align="center" variant="caption">
-                  <span
-                    style={{
-                      // color: "#53ff95",
-                      color: theme.palette.success.main,
-                      fontWeight: 500,
-                      fontSize: "2em",
-                    }}
-                  >
-                    <ArrowUpwardIcon style={{ fontSize: "0.7em" }} />
-                    {Number.isNaN(returnLast7Days)
-                      ? "N.A."
-                      : `${(returnLast7Days * 100).toFixed(2)}%`}
-                  </span>
-                  <br />
-                  Annualised Return
-                  <br />
-                  (7 Days)
-                </Typography>
-              </Grid>
-              <Grid item xs={6}>
-                <Typography align="center" variant="caption">
-                  <span
-                    style={{
-                      fontWeight: 500,
-                      fontSize: "2em",
-                    }}
-                  >
-                    {Number.isNaN(returnLast30Days)
-                      ? "N.A."
-                      : `${(returnLast30Days * 100).toFixed(2)}%`}
-                  </span>
-                  <br />
-                  Annualised Return
-                  <br />
-                  (30 Days)
-                </Typography>
-              </Grid>
-            </Grid>
-          </Grid>
+          </Typography>
         </Grid>
-        <br />
-        <Divider />
-        <br />
-        <Typography variant="h5" gutterBottom className={classes.heading}>
-          Overall Portfolio Performance
-        </Typography>
-        <div style={{ height: "350px", margin: "24px 8px 16px" }}>
-          <PerformanceChart data={performanceData} />
-        </div>
-        <br />
-        <Divider />
-        <br />
-        <Typography variant="h5" gutterBottom className={classes.heading}>
-          Annualised Returns
-        </Typography>
-        <div style={{ height: "350px", margin: "24px 8px 16px" }}>
-          <MovingAverage data={maData} />
-        </div>
-        <br />
-        <Divider />
-        <br />
-        <br />
-        <Grid container justify="space-around" spacing={2}>
-          <Grid item xs={12} md={5}>
-            <Typography variant="h5" className={classes.heading}>
-              Current Margin Allocation
-            </Typography>
-            <div style={{ height: "250px", margin: "0 8px" }}>
-              <MarginAllocation data={margin} />
-            </div>
-          </Grid>
-          <Grid item xs={12} md={5}>
-            <Hidden mdUp>
-              <br />
-              <Divider />
-              <br />
-              <br />
-            </Hidden>
-            <Typography variant="h5" className={classes.heading}>
-              Portfolio Indicators
-            </Typography>
-            <TableContainer>
-              <Table aria-label="simple table">
-                <TableBody>
-                  {[
-                    { name: "", value: "" },
-                    { name: "Sharpe Ratio", value: sharpe.toFixed(3) },
-                    { name: "Skewness", value: skewness.toFixed(3) },
-                    { name: "Kurtosis", value: kurtosis.toFixed(3) },
-                    // { name: "Alpha", value: "96%" },
-                    // { name: "Beta", value: "-0.05" },
-                  ].map(({ name, value }) => (
-                    <TableRow key={value}>
-                      <TableCell component="th" scope="row">
-                        {name}
-                      </TableCell>
-                      <TableCell align="right">{value}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Grid>
+        <Grid item xs={6} md={3}>
+          <Typography align="center" variant="caption">
+            <span
+              style={{
+                fontWeight: 500,
+                fontSize: "2em",
+                color: theme.palette.primary.main,
+              }}
+            >
+              {sharpe.toFixed(2)}
+            </span>
+            <br />
+            Sharpe Ratio
+          </Typography>
         </Grid>
-      </Paper>
-    </Container>
+        <Grid item xs={6} md={3}>
+          <Typography align="center" variant="caption">
+            <span
+              style={{
+                // color: "#53ff95",
+                color: theme.palette.success.main,
+                fontWeight: 500,
+                fontSize: "2em",
+              }}
+            >
+              <ArrowUpwardIcon style={{ fontSize: "0.7em" }} />
+              {Number.isNaN(returnLast7Days)
+                ? "N.A."
+                : `${(returnLast7Days * 100).toFixed(2)}%`}
+            </span>
+            <br />
+            Annualised Return
+            <br />
+            (7 Days)
+          </Typography>
+        </Grid>
+        <Grid item xs={6} md={3}>
+          <Typography align="center" variant="caption">
+            <span
+              style={{
+                fontWeight: 500,
+                fontSize: "2em",
+              }}
+            >
+              {Number.isNaN(returnLast30Days)
+                ? "N.A."
+                : `${(returnLast30Days * 100).toFixed(2)}%`}
+            </span>
+            <br />
+            Annualised Return
+            <br />
+            (30 Days)
+          </Typography>
+        </Grid>
+      </Grid>
+      <br />
+      <Divider />
+      <br />
+      <Typography variant="h5" gutterBottom className={classes.heading}>
+        Overall Portfolio Performance
+      </Typography>
+      <div style={{ height: "350px", margin: "24px 8px 16px" }}>
+        <PerformanceChart data={performanceData} />
+      </div>
+      <br />
+      <Divider />
+      <br />
+      <Typography variant="h5" gutterBottom className={classes.heading}>
+        Annualised Returns
+      </Typography>
+      <div style={{ height: "350px", margin: "24px 8px 16px" }}>
+        <MovingAverage data={maData} />
+      </div>
+      <br />
+      <Divider />
+      <br />
+      <br />
+      <Grid container justify="space-around" spacing={2}>
+        <Grid item xs={12} md={5}>
+          <Typography variant="h5" className={classes.heading}>
+            Current Margin Allocation
+          </Typography>
+          <div style={{ height: "250px", margin: "0 8px" }}>
+            <MarginAllocation data={margin} />
+          </div>
+        </Grid>
+        <Grid item xs={12} md={5}>
+          <Hidden mdUp>
+            <br />
+            <Divider />
+            <br />
+            <br />
+          </Hidden>
+          <Typography variant="h5" className={classes.heading}>
+            Portfolio Indicators
+          </Typography>
+          <TableContainer>
+            <Table aria-label="simple table">
+              <TableBody>
+                {[
+                  { name: "", value: "" },
+                  { name: "Sharpe Ratio", value: sharpe.toFixed(3) },
+                  { name: "Skewness", value: skewness.toFixed(3) },
+                  { name: "Kurtosis", value: kurtosis.toFixed(3) },
+                  // { name: "Alpha", value: "96%" },
+                  // { name: "Beta", value: "-0.05" },
+                ].map(({ name, value }) => (
+                  <TableRow key={value}>
+                    <TableCell component="th" scope="row">
+                      {name}
+                    </TableCell>
+                    <TableCell align="right">{value}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Grid>
+      </Grid>
+    </Paper>
   );
 };
