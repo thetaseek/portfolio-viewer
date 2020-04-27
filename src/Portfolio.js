@@ -1,15 +1,12 @@
 import React from "react";
-import zip from "lodash/zip";
-import uniqBy from "lodash/uniqBy";
 import sumBy from "lodash/sumBy";
+import isNumber from "lodash/isNumber";
 import IconError from "@material-ui/icons/ErrorOutline";
 import {
-  Container,
   Divider,
   CircularProgress,
   Grid,
   Hidden,
-  Link,
   Paper,
   Table,
   TableBody,
@@ -20,6 +17,8 @@ import {
   useTheme,
 } from "@material-ui/core";
 import ArrowUpwardIcon from "@material-ui/icons/ArrowUpward";
+import ArrowDownwardIcon from "@material-ui/icons/ArrowDownward";
+
 import {
   Area,
   AreaChart,
@@ -38,11 +37,12 @@ import {
 import { makeStyles } from "@material-ui/core/styles";
 import { format } from "date-fns";
 import {
-  changeEachPeriod,
+  calcBitmexDailyPerformance,
   changeOverPeriodEnd,
-  changeOverall,
+  changeRunning,
   movingAverage,
   sharpeRatio,
+  sortinoRatio,
 } from "./calcs";
 
 import { sampleKurtosis, sampleSkewness } from "simple-statistics";
@@ -67,10 +67,7 @@ const PerformanceChart = ({ data }) => {
   const theme = useTheme();
   const text = theme.palette.text.primary;
   const tooltipColor = theme.palette.getContrastText("#fff");
-  // const green = '#53ff95';
-  // const green = "#2EAE34";
   const green = theme.palette.success.main;
-  // const red = "#f04800";
   const red = theme.palette.error.main;
   const color = theme.palette.primary.main;
   return (
@@ -248,6 +245,33 @@ const useStyles = makeStyles((theme) => ({
   },
 }));
 
+const StyledReturn = ({ value }) => {
+  const theme = useTheme();
+  const style = {
+    fontWeight: 500,
+    fontSize: "2em",
+  };
+  if (!isNumber(value) || Number.isNaN(value)) {
+    return <span style={style}>N.A.</span>;
+  }
+  return (
+    <span
+      style={{
+        ...style,
+        color:
+          value > 0 ? theme.palette.success.main : theme.palette.error.main,
+      }}
+    >
+      {value > 0 ? (
+        <ArrowUpwardIcon style={{ fontSize: "0.7em" }} />
+      ) : (
+        <ArrowDownwardIcon style={{ fontSize: "0.7em" }} />
+      )}
+      {`${(Math.abs(value) * 100).toFixed(2)}%`}
+    </span>
+  );
+};
+
 export const Portfolio = ({
   fetching,
   error,
@@ -284,7 +308,9 @@ export const Portfolio = ({
         >
           <Grid item>
             <IconError fontSize="large" color="error" />
-            <Typography color="error">Failed to load data with API keys</Typography>
+            <Typography color="error">
+              Failed to load data with API keys
+            </Typography>
           </Grid>
         </Grid>
       </Paper>
@@ -310,40 +336,32 @@ export const Portfolio = ({
     );
   }
 
-  const raw = uniqBy(
-    walletHistory.filter((x) => x.transactStatus === "Completed"),
-    (x) => formatDate(new Date(x.timestamp))
-  )
-    .map((x) => ({
-      date: new Date(x.timestamp),
-      balance: parseFloat(x.walletBalance / 10e8),
-    }))
-    .reverse();
-  const balances = raw.map((x) => x.balance);
-  const change = changeEachPeriod(balances);
-
-  const riskFreeRate = 0.25 / 100;
+  const riskFreeRate = 0;
+  const daily = calcBitmexDailyPerformance(walletHistory);
+  const change = daily.map((x) => x.change);
+  const aum = daily[daily.length - 1].balance;
 
   // Single Numbers
-  const aum = balances[balances.length - 1];
-  const kurtosis = sampleKurtosis(change.slice(1));
-  const returnLast30Days = changeOverPeriodEnd(balances, 30) * 365;
-  const returnLast7Days = changeOverPeriodEnd(balances, 7) * 365;
-  const sharpe = sharpeRatio(balances, riskFreeRate / 365);
-  const skewness = sampleSkewness(change.slice(1));
+  const kurtosis = sampleKurtosis(change);
+  const returnLast30Days = changeOverPeriodEnd(change, 30) * 365;
+  const returnLast7Days = changeOverPeriodEnd(change, 7) * 365;
+  const sharpe = sharpeRatio(change, riskFreeRate / 365);
+  const sortino = sortinoRatio(change, riskFreeRate / 365);
+  const skewness = sampleSkewness(change);
 
   // Arrays
-  const performance = changeOverall(balances);
+  const performance = changeRunning(change);
+
+  // const performance = changeOverall(balances);
   const ma = movingAverage(change, 7);
-  const data = raw.map((x, i) => ({
-    date: formatDate(x.date),
-    balance: x.balance,
+  const data = daily.map(({ date, ...x }, i) => ({
+    date: formatDate(date),
     change: change[i],
+    ...x,
+    balance: x.balance,
     sevenMA: ma[i] * 365,
     performance: performance[i],
   }));
-  const maData = data;
-  const performanceData = data;
   console.debug(data);
 
   const marginSum = sumBy(position, "maintMargin");
@@ -393,19 +411,7 @@ export const Portfolio = ({
         </Grid>
         <Grid item xs={6} md={3}>
           <Typography align="center" variant="caption">
-            <span
-              style={{
-                // color: "#53ff95",
-                color: theme.palette.success.main,
-                fontWeight: 500,
-                fontSize: "2em",
-              }}
-            >
-              <ArrowUpwardIcon style={{ fontSize: "0.7em" }} />
-              {Number.isNaN(returnLast7Days)
-                ? "N.A."
-                : `${(returnLast7Days * 100).toFixed(2)}%`}
-            </span>
+            <StyledReturn value={returnLast7Days} />
             <br />
             Annualised Return
             <br />
@@ -414,16 +420,7 @@ export const Portfolio = ({
         </Grid>
         <Grid item xs={6} md={3}>
           <Typography align="center" variant="caption">
-            <span
-              style={{
-                fontWeight: 500,
-                fontSize: "2em",
-              }}
-            >
-              {Number.isNaN(returnLast30Days)
-                ? "N.A."
-                : `${(returnLast30Days * 100).toFixed(2)}%`}
-            </span>
+            <StyledReturn value={returnLast30Days} />
             <br />
             Annualised Return
             <br />
@@ -438,7 +435,7 @@ export const Portfolio = ({
         Overall Portfolio Performance
       </Typography>
       <div style={{ height: "350px", margin: "24px 8px 16px" }}>
-        <PerformanceChart data={performanceData} />
+        <PerformanceChart data={data} />
       </div>
       <br />
       <Divider />
@@ -447,7 +444,7 @@ export const Portfolio = ({
         Annualised Returns
       </Typography>
       <div style={{ height: "350px", margin: "24px 8px 16px" }}>
-        <MovingAverage data={maData} />
+        <MovingAverage data={data} />
       </div>
       <br />
       <Divider />
@@ -478,6 +475,7 @@ export const Portfolio = ({
                 {[
                   { name: "", value: "" },
                   { name: "Sharpe Ratio", value: sharpe.toFixed(3) },
+                  { name: "Sortino Ratio", value: sortino.toFixed(3) },
                   { name: "Skewness", value: skewness.toFixed(3) },
                   { name: "Kurtosis", value: kurtosis.toFixed(3) },
                   // { name: "Alpha", value: "96%" },
@@ -495,6 +493,37 @@ export const Portfolio = ({
           </TableContainer>
         </Grid>
       </Grid>
+      {/*<MaterialTable*/}
+      {/*  options={{*/}
+      {/*    padding: "dense",*/}
+      {/*    pageSize: 10,*/}
+      {/*    pageSizeOptions: [10, 50, 100],*/}
+      {/*    exportButton: true,*/}
+      {/*    search: false,*/}
+      {/*  }}*/}
+      {/*  columns={[*/}
+      {/*    { title: "Date", field: "date", defaultSort: "desc" },*/}
+      {/*    {*/}
+      {/*      type: "numeric",*/}
+      {/*      title: "Balance",*/}
+      {/*      field: "balance",*/}
+      {/*      render: ({ balance }) => `${balance.toFixed(4)}`,*/}
+      {/*    },*/}
+      {/*    {*/}
+      {/*      type: "numeric",*/}
+      {/*      title: "Net Flow",*/}
+      {/*      field: "flow",*/}
+      {/*      render: ({ flow }) => (flow ? `${flow.toFixed(4)}` : "-"),*/}
+      {/*    },*/}
+      {/*    {*/}
+      {/*      title: "Change",*/}
+      {/*      field: "change",*/}
+      {/*      render: ({ change }) => `${(change * 100).toFixed(2)}%`,*/}
+      {/*      type: "numeric",*/}
+      {/*    },*/}
+      {/*  ]}*/}
+      {/*  data={data}*/}
+      {/*/>*/}
     </Paper>
   );
 };

@@ -5,6 +5,7 @@ import { Container } from "@material-ui/core";
 import ApiCredentialForm from "../ApiCredentialForm";
 import bitmex from "../bitmex";
 import { Portfolio } from "../Portfolio";
+// import {position, walletHistory, walletHistoryLarge} from "../data";
 
 const styles = (theme) => ({
   container: {
