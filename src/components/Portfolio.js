@@ -277,6 +277,7 @@ export const Portfolio = ({
   error,
   walletHistory = [],
   position = [],
+  margin = {},
 }) => {
   const theme = useTheme();
   const classes = useStyles();
@@ -339,7 +340,7 @@ export const Portfolio = ({
   const riskFreeRate = 0;
   const daily = calcBitmexDailyPerformance(walletHistory);
   const change = daily.map((x) => x.change);
-  const aum = daily[daily.length - 1].balance;
+  const aum = margin.marginBalance / 1e8;
 
   // Single Numbers
   const kurtosis = sampleKurtosis(change);
@@ -365,7 +366,7 @@ export const Portfolio = ({
   console.debug(data);
 
   const marginSum = sumBy(position, "maintMargin");
-  const margin = position.map((x) => ({
+  const marginData = position.map((x) => ({
     allocation: x.maintMargin / marginSum,
     instrument: x.symbol,
   }));
@@ -387,7 +388,7 @@ export const Portfolio = ({
                 fontSize: "2em",
               }}
             >
-              {`${aum.toFixed(3)} BTC`}
+              {aum ? `${aum.toFixed(3)} BTC` : '??'}
             </span>
             <br />
             AUM
@@ -456,7 +457,7 @@ export const Portfolio = ({
             Current Margin Allocation
           </Typography>
           <div style={{ height: "250px", margin: "0 8px" }}>
-            <MarginAllocation data={margin} />
+            <MarginAllocation data={marginData} />
           </div>
         </Grid>
         <Grid item xs={12} md={5}>

@@ -5,7 +5,7 @@ import { Container } from "@material-ui/core";
 import ApiCredentialForm from "../components/ApiCredentialForm";
 import bitmex from "../services/bitmex";
 import { Portfolio } from "../components/Portfolio";
-// import {position, walletHistory, walletHistoryLarge} from "../data";
+// import {position, walletHistory, margin} from "../data";
 
 const styles = (theme) => ({
   container: {
@@ -27,6 +27,7 @@ export class MainPage extends Component {
       data: {
         // walletHistory: walletHistory,
         // position: position,
+        // margin: margin,
       },
     };
     this.handleAuthPanelChange = this.handleAuthPanelChange.bind(this);
@@ -53,15 +54,17 @@ export class MainPage extends Component {
 
       Promise.all([
         bitmex({ url: "/position" }, credentials),
+        bitmex({ url: "/user/margin" }, credentials),
         bitmex({ url: "/user/walletHistory" }, credentials),
       ])
         .then((r) => {
-          const [position, walletHistory] = r;
+          const [position, margin, walletHistory] = r;
           this.setState({
             isAuthOpen: false,
             fetching: false,
             data: {
               position,
+              margin,
               walletHistory,
             },
           });
@@ -88,6 +91,7 @@ export class MainPage extends Component {
           fetching={fetching}
           walletHistory={data.walletHistory}
           position={data.position}
+          margin={data.margin}
           error={error}
         />
       </Container>
