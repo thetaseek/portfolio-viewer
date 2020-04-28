@@ -58,7 +58,6 @@ export const signBitmex = (config, { apiKey, apiSecret } = {}) => {
 };
 
 const proxy = "https://thingproxy.freeboard.io/fetch/";
-// const proxy = "https://cors-anywhere.coincuro.com/";
 const bitmex = (config, auth = {}) => {
   const c = signBitmex(config, auth);
   c.url = `${proxy}${baseURL}${c.url}`;

@@ -10,17 +10,6 @@ import {
 } from "@material-ui/core";
 
 import ExpandMoreIcon from "@material-ui/icons/ExpandMore";
-import { makeStyles } from "@material-ui/core/styles";
-
-const useStyles = makeStyles((theme) => ({
-  paper: {
-    margin: theme.spacing(0, 0, 4),
-    padding: theme.spacing(0),
-    [theme.breakpoints.up("md")]: {
-      padding: theme.spacing(4),
-    },
-  },
-}));
 
 const ApiCredentialForm = ({
   open,
@@ -28,7 +17,6 @@ const ApiCredentialForm = ({
   onSubmit,
   initialValues = {},
 }) => {
-  const classes = useStyles();
   const [apiKey, setKey] = React.useState(initialValues.apiKey || "");
   const [apiSecret, setSecret] = React.useState(initialValues.apiSecret || "");
   const handleSubmit = (e) => {
@@ -46,14 +34,20 @@ const ApiCredentialForm = ({
       </ExpansionPanelSummary>
       <ExpansionPanelDetails>
         <div style={{ width: "100%" }}>
-          <Typography gutterBottom>These won't be shared anywhere</Typography>
+          <Typography gutterBottom>
+            These credentials stay in your browser and won't be saved anywhere.
+          </Typography>
+          <Typography gutterBottom variant="body2">
+            The API signature is calculated by the browser so that the API
+            secret never needs to be shared.
+          </Typography>
           <br />
           <form onSubmit={handleSubmit}>
             <TextField
               id="apiKey"
               value={apiKey}
               onChange={(e) => setKey(e.currentTarget.value)}
-              label="Bitmex Api ID"
+              label="Bitmex API ID"
               variant="outlined"
               fullWidth
               size="small"
@@ -64,7 +58,7 @@ const ApiCredentialForm = ({
               id="apiSecret"
               value={apiSecret}
               onChange={(e) => setSecret(e.currentTarget.value)}
-              label="Bitmex Api Secret"
+              label="Bitmex API Secret"
               variant="outlined"
               fullWidth
               size="small"

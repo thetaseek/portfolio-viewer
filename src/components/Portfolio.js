@@ -43,7 +43,7 @@ import {
   movingAverage,
   sharpeRatio,
   sortinoRatio,
-} from "./calcs";
+} from "../services/calcs";
 
 import { sampleKurtosis, sampleSkewness } from "simple-statistics";
 
@@ -229,7 +229,7 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   paper: {
-    padding: theme.spacing(0),
+    padding: theme.spacing(1,0),
     [theme.breakpoints.up("md")]: {
       padding: theme.spacing(4),
     },
@@ -371,7 +371,7 @@ export const Portfolio = ({
   }));
   return (
     <Paper className={classes.paper}>
-      <Typography variant="h1">Portfolio Overview</Typography>
+      <Typography variant="h1" gutterBottom>Portfolio Overview</Typography>
       <Grid
         container
         justify="space-between"

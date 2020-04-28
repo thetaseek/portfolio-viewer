@@ -2,9 +2,9 @@ import React, { Component } from "react";
 import withStyles from "@material-ui/core/styles/withStyles";
 import { Container } from "@material-ui/core";
 
-import ApiCredentialForm from "../ApiCredentialForm";
-import bitmex from "../bitmex";
-import { Portfolio } from "../Portfolio";
+import ApiCredentialForm from "../components/ApiCredentialForm";
+import bitmex from "../services/bitmex";
+import { Portfolio } from "../components/Portfolio";
 // import {position, walletHistory, walletHistoryLarge} from "../data";
 
 const styles = (theme) => ({
