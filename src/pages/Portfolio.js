@@ -38,11 +38,12 @@ export class MainPage extends Component {
   }
 
   handleSubmit(credentials) {
-    const { credentials: prev } = this.state;
+    const { error, credentials: prev } = this.state;
     if (
       credentials.apiKey &&
       credentials.apiSecret &&
-      (credentials.apiSecret !== prev.apiSecret ||
+      (error ||
+        credentials.apiSecret !== prev.apiSecret ||
         credentials.apiKey !== prev.apiKey)
     ) {
       this.setState({

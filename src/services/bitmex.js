@@ -57,10 +57,10 @@ export const signBitmex = (config, { apiKey, apiSecret } = {}) => {
   return config;
 };
 
-const proxy = "https://thingproxy.freeboard.io/fetch/";
+// const proxy = "https://thingproxy.freeboard.io/fetch/";
 const bitmex = (config, auth = {}) => {
   const c = signBitmex(config, auth);
-  c.url = `${proxy}${baseURL}${c.url}`;
+  c.url = `/api/bitmex${c.url}`;
   return instance(c).then((r) => r.data);
 };
 export default bitmex;
